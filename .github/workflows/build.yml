@@ -1,7 +1,10 @@
 name: Build
 
-# Compila y prueba en cada push a main/dev y en cada PR. El binario queda
-# disponible como artefacto descargable desde la pestaña Actions (90 días).
+# Compila y prueba en cada push a main/dev y en cada PR.
+#  - artefacto de la corrida (pestaña Actions, 90 días) siempre
+#  - en push a main: publica/actualiza la release "latest" con el binario,
+#    descargable sin login desde:
+#    https://github.com/samuelloza/pulso/releases/latest
 # Las releases versionadas las publica release.yml al empujar un tag `v*`.
 on:
   push:
@@ -34,3 +37,42 @@ jobs:
           name: pulso-linux-x86_64
           path: build/bin/pulso
           if-no-files-found: error
+
+  release-latest:
+    # Solo en push a main (no en PRs ni en dev): mantiene una pre-release
+    # rodante "latest" con el binario más reciente.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Descargar binario de la corrida
+        uses: actions/download-artifact@v4
+        with:
+          name: pulso-linux-x86_64
+          path: dist
+
+      - name: Empaquetar
+        run: |
+          chmod +x dist/pulso
+          PKG="pulso-latest-linux-x86_64"
+          mkdir -p "$PKG"
+          cp dist/pulso "$PKG/"
+          cp pulso.toml README.md LICENSE "$PKG/"
+          tar -czf "${PKG}.tar.gz" "$PKG"
+          sha256sum "${PKG}.tar.gz" > "${PKG}.tar.gz.sha256"
+
+      - name: Publicar / actualizar release "latest"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Build automática de \`main\` — commit ${GITHUB_SHA::7} ($(date -u +%Y-%m-%dT%H:%MZ)).
+          Para versiones estables ver los tags \`vX.Y.Z\`."
+          gh release create latest \
+              --prerelease --title "latest (main)" --notes "$NOTES" \
+              pulso-latest-linux-x86_64.tar.gz pulso-latest-linux-x86_64.tar.gz.sha256 \
+          || gh release upload latest \
+              pulso-latest-linux-x86_64.tar.gz pulso-latest-linux-x86_64.tar.gz.sha256 --clobber

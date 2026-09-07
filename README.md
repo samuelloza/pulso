@@ -34,17 +34,23 @@ CMake FetchContent. OpenSSL es opcional y habilita `https://` en el push.
 
 ## Descargas
 
-Binario para Linux x86_64 ya compilado:
+Binario para Linux x86_64 ya compilado (enlace directo, sin login):
 
-- **Releases**: cada tag `vX.Y.Z` publica `pulso-vX.Y.Z-linux-x86_64.tar.gz`
-  (con `.sha256`) en la [página de Releases](https://github.com/sis-inf/pulso/releases).
-- **Builds de desarrollo**: cada push a `main`/`dev` sube el binario como
-  artefacto en la pestaña [Actions](https://github.com/sis-inf/pulso/actions/workflows/build.yml)
-  (retención 90 días).
+- **Última build de `main`** — se regenera en cada push (pre-release rodante
+  con tag `latest`):
+  [página](https://github.com/sis-inf/pulso/releases/tag/latest) ·
+  [`pulso-latest-linux-x86_64.tar.gz`](https://github.com/sis-inf/pulso/releases/download/latest/pulso-latest-linux-x86_64.tar.gz)
+- **Versiones estables** — cada tag `vX.Y.Z` publica su
+  `pulso-vX.Y.Z-linux-x86_64.tar.gz` (con `.sha256`) en
+  [Releases](https://github.com/sis-inf/pulso/releases).
+- **Artefacto de una corrida concreta** (requiere login): pestaña
+  [Actions → Build](https://github.com/sis-inf/pulso/actions/workflows/build.yml),
+  retención 90 días.
 
 ```bash
-tar -xzf pulso-v0.1.0-linux-x86_64.tar.gz
-./pulso-v0.1.0-linux-x86_64/pulso --once
+curl -fsSLO https://github.com/sis-inf/pulso/releases/download/latest/pulso-latest-linux-x86_64.tar.gz
+tar -xzf pulso-latest-linux-x86_64.tar.gz
+./pulso-latest-linux-x86_64/pulso --once
 ```
 
 ## Uso
