@@ -5,7 +5,6 @@
 #include <toml++/toml.hpp>
 
 #include <filesystem>
-#include <format>
 #include <string>
 #include <fstream>
 #include <sstream>
