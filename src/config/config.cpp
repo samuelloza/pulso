@@ -24,7 +24,7 @@ T leer(const toml::table& tabla,
 {
     if (auto* sec = tabla[seccion].as_table()) {
         if (auto nodo = (*sec)[clave]) {
-            if (auto val = nodo.value<T>()) {
+            if (auto val = nodo.template value<T>()) {
                 return *val;
             }
         }
@@ -40,7 +40,7 @@ T leer(const toml::table& tabla,
        T porDefecto)
 {
     if (auto nodo = tabla[clave]) {
-        if (auto val = nodo.value<T>()) {
+        if (auto val = nodo.template value<T>()) {
             return *val;
         }
     }
