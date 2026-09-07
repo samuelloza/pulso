@@ -63,22 +63,46 @@ std::string CollectorMemory::nombre() const {
 }
 
 std::vector<pulso::core::Metrica> CollectorMemory::recolectar() {
+    std::ifstream file("/proc/meminfo");
+    if (!file.is_open()) {
+        throw std::runtime_error("No se pudo abrir /proc/meminfo");
+    }
 
-    RamInfo ram = getRamUsage();
+    // Todos los valores de /proc/meminfo están en kB.
+    std::string clave;
+    long long valor_kb = 0;
+    long long total = 0, disponible = 0, libre = 0, buffers = 0, cached = 0;
+    long long swap_total = 0, swap_libre = 0;
 
-    auto timestamp = static_cast<std::int64_t>(
-        std::chrono::system_clock::to_time_t(
-            std::chrono::system_clock::now()
-        )
-    );
+    std::string linea;
+    while (std::getline(file, linea)) {
+        std::istringstream iss(linea);
+        iss >> clave >> valor_kb;
+        const long long b = valor_kb * 1024;
+        if      (clave == "MemTotal:")     total = b;
+        else if (clave == "MemAvailable:") disponible = b;
+        else if (clave == "MemFree:")      libre = b;
+        else if (clave == "Buffers:")      buffers = b;
+        else if (clave == "Cached:")       cached = b;
+        else if (clave == "SwapTotal:")    swap_total = b;
+        else if (clave == "SwapFree:")     swap_libre = b;
+    }
+
+    const auto ts = static_cast<std::int64_t>(
+        std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+    const double usada = static_cast<double>(total - disponible);
+    const double swap_usada = static_cast<double>(swap_total - swap_libre);
 
     return {
-        {
-            "memory.used",
-            static_cast<double>(ram.used),
-            "bytes",
-            timestamp
-        }
+        {"memory.total_bytes",     static_cast<double>(total),      "bytes", ts},
+        {"memory.available_bytes", static_cast<double>(disponible), "bytes", ts},
+        {"memory.free_bytes",      static_cast<double>(libre),      "bytes", ts},
+        {"memory.used_bytes",      usada,                           "bytes", ts},
+        {"memory.buffers_bytes",   static_cast<double>(buffers),    "bytes", ts},
+        {"memory.cached_bytes",    static_cast<double>(cached),     "bytes", ts},
+        {"swap.total_bytes",       static_cast<double>(swap_total), "bytes", ts},
+        {"swap.free_bytes",        static_cast<double>(swap_libre), "bytes", ts},
+        {"swap.used_bytes",        swap_usada,                      "bytes", ts},
     };
 }
 

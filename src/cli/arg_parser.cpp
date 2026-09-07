@@ -39,6 +39,8 @@ static void parse_metrics(const std::string& metrics, pulso::config::MonitorConf
     }
 }
 
+namespace pulso::cli {
+
 void print_help()
 {
     std::cout << "Uso:\n";
@@ -54,7 +56,7 @@ void print_help()
     std::cout << "  --version         Mostrar version\n";
 }
 
-bool parse_arguments(int argc, char* argv[], pulso::cli::CliOptions& options)
+bool parse_arguments(int argc, char* argv[], CliOptions& options)
 {
     for (int i = 1; i < argc; ++i)
     {
@@ -136,3 +138,4 @@ bool parse_arguments(int argc, char* argv[], pulso::cli::CliOptions& options)
 
     return true;
 }
+} // namespace pulso::cli

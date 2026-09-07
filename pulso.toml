@@ -1,24 +1,36 @@
-# Archivo de configuración del agente pulso
-# Todas las opciones tienen valores por defecto; este archivo muestra los valores
-# explícitos para fines de documentación.
+# Archivo de configuración del agente pulso.
+# Todas las opciones tienen valores por defecto; este archivo los hace explícitos.
 
 [servidor]
-# Dirección IP en la que escucha el servidor HTTP.
-# 0.0.0.0 acepta conexiones desde cualquier interfaz.
+# Servidor HTTP local del agente (solo /health, /version y /metrics/prometheus
+# para depuración; el envío real de métricas es por push al Pushgateway).
 host = "0.0.0.0"
-
-# Puerto del servidor HTTP.
 puerto = 8080
 
 [sampler]
-# Intervalo entre muestreos consecutivos, en segundos.
-# Valores recomendados: entre 5 y 60.
+# Intervalo entre muestreos, en segundos. Recomendado: 10-60.
 intervalo_segundos = 10
 
-[storage]
-# Ruta del archivo de base de datos SQLite.
-# Puede ser relativa al directorio de ejecución o absoluta.
-ruta_db = "pulso.db"
+[procesos]
+# Vigilar programas del usuario, agrupados por nombre (nunca por PID).
+# Emite proceso.instancias / start_time_seconds / rss_bytes / cpu_seconds
+# con etiqueta {comm}. Cardinalidad ~= nº de programas distintos por máquina.
+activo = true
+# Solo procesos cuyo dueño tenga UID >= este valor (1000 = usuarios reales;
+# deja fuera daemons de sistema y root).
+uid_minimo = 1000
+
+[pushgateway]
+# URL base del Prometheus Pushgateway. Vacío ("") desactiva el push
+# (el agente solo expone /metrics/prometheus local para modo pull).
+#   - agente en la MISMA máquina que el stack: http://localhost:9091
+#   - agente en OTRA máquina: http://<IP-DEL-STACK>:9091
+# Override rápido sin editar este archivo: PULSO_PUSHGATEWAY_URL=...
+url = "http://localhost:9091"
+# Etiqueta de grouping `job`.
+job = "pulso"
+# Etiqueta de grouping `instance`. Vacío = usar el hostname de la máquina.
+instance = ""
 
 # Nivel de log: debug, info, warn, error
 nivel_log = "info"

@@ -45,7 +45,7 @@ ctest -R nombre
 Ejemplo:
 
 ```bash
-ctest -R storage
+ctest -R Prometheus
 ```
 
 ## Estructura de carpetas de tests
@@ -56,8 +56,6 @@ ctest -R storage
 | tests/automatizados/unit        | Tests unitarios                                 |
 | tests/automatizados/integration | Tests de integración                            |
 | tests/automatizados/e2e         | Tests end-to-end                                |
-| tests/core                      | Tests relacionados con tipos y estructuras base |
-| tests/storage                   | Tests del módulo de almacenamiento              |
 | tests/formatters                | Tests de formateadores de salida                |
 | tests/fixtures                  | Archivos de ejemplo utilizados por los tests    |
 | tests/datos                     | Datos de entrada y resultados esperados         |

@@ -46,15 +46,36 @@ struct ConfigSampler {
     int intervalo_segundos = 10;
 };
 
-struct ConfigStorage {
-    std::string ruta_db = "pulso.db";
+struct ConfigProcesos {
+    /// Recolectar métricas de procesos agrupadas por nombre. Ojo cardinalidad:
+    /// ~1 serie por nombre de programa distinto por máquina.
+    bool activo = true;
+    /// Solo procesos cuyo dueño tenga UID >= este valor (1000 = usuarios reales,
+    /// deja fuera daemons de sistema y root).
+    int64_t uid_minimo = 1000;
+};
+
+struct ConfigPushgateway {
+    /// URL base del Pushgateway o del reverse proxy (http:// o https://).
+    /// Vacío = no hacer push.
+    std::string url = "http://localhost:9091";
+    /// Etiqueta de grouping `job`.
+    std::string job = "pulso";
+    /// Etiqueta de grouping `instance`. Vacío = usar el hostname.
+    std::string instance = "";
+    /// Bearer token que envía el agente (header `Authorization: Bearer <token>`).
+    /// Vacío = sin header. Lo valida el reverse proxy delante del Pushgateway.
+    std::string token = "";
+    /// Aceptar certificados TLS self-signed (útil si el proxy usa un cert propio).
+    bool tls_skip_verify = false;
 };
 
 struct Config {
-    ConfigServidor servidor;
-    ConfigSampler  sampler;
-    ConfigStorage  storage;
-    std::string    nivel_log = "info";
+    ConfigServidor     servidor;
+    ConfigSampler      sampler;
+    ConfigProcesos     procesos;
+    ConfigPushgateway  pushgateway;
+    std::string        nivel_log = "info";
     /// Formato de salida de métricas.
     /// Valores válidos: json, csv, prometheus
     std::string    output_format = "json";

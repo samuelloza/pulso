@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../../src/core/types.hpp"
+#include "core/types.hpp"
 
 using namespace pulso::core;
 
@@ -12,9 +12,9 @@ TEST(TestConstruccionMetrica, ValoresExplicitos) {
         1710000000
     };
 
-    EXPECT_EQ(metrica.name, "cpu.usage");
-    EXPECT_DOUBLE_EQ(metrica.value, 75.5);
-    EXPECT_EQ(metrica.unit, "porcentaje");
+    EXPECT_EQ(metrica.nombre, "cpu.usage");
+    EXPECT_DOUBLE_EQ(metrica.valor, 75.5);
+    EXPECT_EQ(metrica.unidad, "porcentaje");
     EXPECT_EQ(metrica.timestamp, 1710000000);
 }
 
@@ -32,9 +32,9 @@ TEST(TestConstruccionSnapshot, SnapshotConMetricas) {
     };
 
     EXPECT_EQ(snapshot.timestamp, 1710000001);
-    EXPECT_EQ(snapshot.metrics.size(), 1);
+    EXPECT_EQ(snapshot.metricas.size(), 1);
 
-    EXPECT_EQ(snapshot.metrics[0].name, "ram.used");
+    EXPECT_EQ(snapshot.metricas[0].nombre, "ram.used");
 }
 
 TEST(TestSnapshotVacio, SinMetricas) {
@@ -43,7 +43,7 @@ TEST(TestSnapshotVacio, SinMetricas) {
         {}
     };
 
-    EXPECT_EQ(snapshot.metrics.size(), 0);
+    EXPECT_EQ(snapshot.metricas.size(), 0);
 }
 
 TEST(TestAgregarMetricasASnapshot, IncrementoCorrecto) {
@@ -52,21 +52,21 @@ TEST(TestAgregarMetricasASnapshot, IncrementoCorrecto) {
         {}
     };
 
-    snapshot.metrics.push_back({
+    snapshot.metricas.push_back({
         "cpu.usage",
         50.0,
         "%",
         1710000001
     });
 
-    snapshot.metrics.push_back({
+    snapshot.metricas.push_back({
         "disk.used",
         80.0,
         "%",
         1710000001
     });
 
-    EXPECT_EQ(snapshot.metrics.size(), 2);
+    EXPECT_EQ(snapshot.metricas.size(), 2);
 }
 
 TEST(TestCopiaDeSnapshot, CopiaIndependiente) {
@@ -84,8 +84,8 @@ TEST(TestCopiaDeSnapshot, CopiaIndependiente) {
 
     Snapshot copia = original;
 
-    copia.metrics[0].value = 99.0;
+    copia.metricas[0].valor = 99.0;
 
-    EXPECT_DOUBLE_EQ(original.metrics[0].value, 60.0);
-    EXPECT_DOUBLE_EQ(copia.metrics[0].value, 99.0);
+    EXPECT_DOUBLE_EQ(original.metricas[0].valor, 60.0);
+    EXPECT_DOUBLE_EQ(copia.metricas[0].valor, 99.0);
 }

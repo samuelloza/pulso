@@ -1,0 +1,44 @@
+name: Release
+
+# Publica un binario de pulso en la Release cuando se empuja un tag `vX.Y.Z`.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write  # crear la release y subir binarios
+
+jobs:
+  build-release:
+    runs-on: ubuntu-22.04  # glibc antiguo = binario compatible con más distros
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libssl-dev
+
+      - name: Compilar (Release, libstdc++ estático)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPULSO_STATIC_LINK=ON
+          cmake --build build -j"$(nproc)"
+
+      - name: Empaquetar
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          PKG="pulso-${VERSION}-linux-x86_64"
+          mkdir -p "$PKG"
+          cp build/bin/pulso "$PKG/"
+          cp pulso.toml README.md LICENSE "$PKG/"
+          tar -czf "${PKG}.tar.gz" "$PKG"
+          sha256sum "${PKG}.tar.gz" > "${PKG}.tar.gz.sha256"
+
+      - name: Publicar en la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            pulso-*.tar.gz pulso-*.tar.gz.sha256

@@ -1,50 +1,102 @@
 #include "collector_disk.hpp"
 
 #include <sys/statvfs.h>
-#include <cerrno>
-#include <cstring>
+
 #include <ctime>
-#include <stdexcept>
+#include <fstream>
+#include <set>
+#include <sstream>
+#include <string>
 
-namespace pulso::platform::linux_platform {
+namespace pulso::collectors {
 
-std::string CollectorDiskLinux::nombre() const {
-    return "disk";
+namespace {
+
+// Sistemas de archivos virtuales/pseudo: no representan almacenamiento real.
+const std::set<std::string> kFsIgnorados = {
+    "proc", "sysfs", "devtmpfs", "devpts", "tmpfs", "cgroup", "cgroup2",
+    "overlay", "squashfs", "autofs", "mqueue", "debugfs", "tracefs",
+    "securityfs", "pstore", "bpf", "configfs", "ramfs", "hugetlbfs",
+    "fusectl", "binfmt_misc", "nsfs", "rpc_pipefs", "fuse.gvfsd-fuse",
+    "fuse.portal", "efivarfs", "none",
+};
+
+// Puntos de montaje del sistema que no representan almacenamiento del usuario.
+bool montajeIgnorado(const std::string& mp) {
+    for (const char* p : {"/sys", "/proc", "/dev", "/run", "/snap"}) {
+        if (mp == p || mp.rfind(std::string(p) + "/", 0) == 0) return true;
+    }
+    return false;
 }
 
-std::vector<pulso::core::Metrica> CollectorDiskLinux::recolectar() {
-    struct statvfs buf{};
+bool dispositivoIgnorado(const std::string& dev) {
+    return dev.rfind("loop", 0) == 0 || dev.rfind("ram", 0) == 0 ||
+           dev.rfind("fd", 0) == 0 || dev.rfind("dm-", 0) == 0;
+}
 
-    // statvfs(3) sobre el punto de montaje raíz.
-    // Devuelve 0 en éxito; en fallo devuelve -1 y setea errno.
-    if (statvfs("/", &buf) != 0) {
-        throw std::runtime_error(
-            std::string("statvfs(\"/\") falló: ") + std::strerror(errno)
-        );
+} // namespace
+
+std::string CollectorDisco::nombre() const { return "disk"; }
+
+std::vector<pulso::core::Metrica> CollectorDisco::recolectar() {
+    const std::int64_t ts = std::time(nullptr);
+    std::vector<pulso::core::Metrica> m;
+
+    // ---- Espacio por punto de montaje ----
+    std::ifstream mi("/proc/self/mountinfo");
+    std::set<std::string> vistos;
+    std::string linea;
+    while (std::getline(mi, linea)) {
+        // formato: id pid maj:min root MOUNTPOINT opts... - FSTYPE source superopts
+        std::istringstream ss(linea);
+        std::string campo, mountpoint, fstype;
+        for (int i = 0; i < 5 && ss >> campo; ++i) {
+            if (i == 4) mountpoint = campo;
+        }
+        while (ss >> campo && campo != "-") { /* saltar opts opcionales */ }
+        ss >> fstype;
+        if (mountpoint.empty() || fstype.empty()) continue;
+        if (kFsIgnorados.count(fstype) || montajeIgnorado(mountpoint)) continue;
+        if (!vistos.insert(mountpoint).second) continue;
+
+        struct statvfs vfs {};
+        if (statvfs(mountpoint.c_str(), &vfs) != 0) continue;
+        const double bs = static_cast<double>(vfs.f_frsize);
+        const double total = static_cast<double>(vfs.f_blocks) * bs;
+        const double libre = static_cast<double>(vfs.f_bavail) * bs;
+        const double usado = total - libre;
+        if (total <= 0) continue;
+
+        const pulso::core::Etiquetas et{{"mount", mountpoint}, {"fstype", fstype}};
+        m.push_back({"disk.total_bytes", total, "bytes", ts, et});
+        m.push_back({"disk.used_bytes",  usado, "bytes", ts, et});
+        m.push_back({"disk.free_bytes",  libre, "bytes", ts, et});
+        m.push_back({"disk.used_ratio",  usado / total, "ratio", ts, et});
     }
 
-    // f_frsize: tamaño fundamental del bloque del sistema de archivos (bytes).
-    // f_blocks: total de bloques en el sistema de archivos.
-    // f_bavail: bloques disponibles para usuarios no privilegiados.
-    // f_bfree : bloques libres totales (incluye reservados para root).
-    //
-    // Se usa f_bavail para disk.free_bytes porque es el espacio real
-    // disponible para procesos de usuario, consistente con lo que reporta df(1).
-    const double total_bytes =
-        static_cast<double>(buf.f_blocks) * static_cast<double>(buf.f_frsize);
+    // ---- I/O por dispositivo ----
+    std::ifstream ds("/proc/diskstats");
+    while (std::getline(ds, linea)) {
+        std::istringstream ss(linea);
+        long long maj, min_;
+        std::string dev;
+        unsigned long long rd_ok, rd_merg, rd_sect, rd_ms,
+                           wr_ok, wr_merg, wr_sect, wr_ms;
+        if (!(ss >> maj >> min_ >> dev
+                 >> rd_ok >> rd_merg >> rd_sect >> rd_ms
+                 >> wr_ok >> wr_merg >> wr_sect >> wr_ms)) {
+            continue;
+        }
+        if (dispositivoIgnorado(dev)) continue;
 
-    const double free_bytes =
-        static_cast<double>(buf.f_bavail) * static_cast<double>(buf.f_frsize);
+        const pulso::core::Etiquetas et{{"device", dev}};
+        m.push_back({"disk.reads_completed",  static_cast<double>(rd_ok), "cantidad", ts, et});
+        m.push_back({"disk.writes_completed", static_cast<double>(wr_ok), "cantidad", ts, et});
+        m.push_back({"disk.read_bytes",    static_cast<double>(rd_sect) * 512.0, "bytes", ts, et});
+        m.push_back({"disk.written_bytes", static_cast<double>(wr_sect) * 512.0, "bytes", ts, et});
+    }
 
-    const double used_bytes = total_bytes - free_bytes;
-
-    const std::int64_t ahora = static_cast<std::int64_t>(std::time(nullptr));
-
-    return {
-        {"disk.total_bytes", total_bytes, "bytes", ahora},
-        {"disk.used_bytes",  used_bytes,  "bytes", ahora},
-        {"disk.free_bytes",  free_bytes,  "bytes", ahora},
-    };
+    return m;
 }
 
-} // namespace pulso::platform::linux_platform
+} // namespace pulso::collectors

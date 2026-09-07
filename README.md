@@ -1,324 +1,165 @@
 # Pulso
 
+[![Build](https://github.com/sis-inf/pulso/actions/workflows/build.yml/badge.svg)](https://github.com/sis-inf/pulso/actions/workflows/build.yml)
 [![CI](https://github.com/sis-inf/pulso/actions/workflows/ci.yml/badge.svg)](https://github.com/sis-inf/pulso/actions/workflows/ci.yml)
 [![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
-Plataforma en C++ para gestionar y monitorear información clave de forma eficiente.
 
-## Inicio Rápido
+Agente de monitoreo del sistema en C++17 para **Linux**. Muestrea métricas de
+`/proc` y `/sys` cada N segundos y las envía por **push** a un Prometheus
+Pushgateway. No persiste nada localmente.
+
+```
+[ pulso @ máquina 1 ] ──push──┐
+[ pulso @ máquina 2 ] ──push──┤──▶ [ Pushgateway ] ◀──scrape── [ Prometheus ] ◀── [ Grafana ]
+[ pulso @ máquina N ] ──push──┘
+```
+
+## Inicio rápido
 
 ```bash
 sudo apt install git cmake g++
 git clone https://github.com/sis-inf/pulso.git && cd pulso
 cmake -S . -B build && cmake --build build
-./build/pulso --once
+
+# Lectura única a stdout (no necesita Pushgateway)
+./build/bin/pulso --once --format json
+
+# Modo agente: muestrea y hace push según pulso.toml
+./build/bin/pulso --config pulso.toml
 ```
 
-Salida esperada:
+Las dependencias (cpp-httplib, nlohmann/json, toml++) se descargan solas con
+CMake FetchContent. OpenSSL es opcional y habilita `https://` en el push.
 
-```text
-Estado del sistema: OK
-```
+## Descargas
 
+Binario para Linux x86_64 ya compilado:
 
-## ¿Qué es?
-
-Pulso es una aplicación desarrollada en C++ que permite gestionar y visualizar información relevante de manera centralizada. Está pensada para ofrecer alto rendimiento y control directo sobre los recursos del sistema.
-
-## ¿Para quién es?
-
-Pulso está dirigido a:
-
-- Desarrolladores que trabajan con sistemas de alto rendimiento
-- Equipos que requieren herramientas eficientes y ligeras
-- Proyectos que necesitan control preciso sobre memoria y procesamiento
-
-## ¿Qué problema resuelve?
-
-Pulso ayuda a resolver:
-
-- La dispersión de información en múltiples fuentes
-- La falta de herramientas rápidas y eficientes
-- El alto consumo de recursos en soluciones tradicionales
-
-Gracias a su implementación en C++, Pulso permite una ejecución más rápida y optimizada.
-
-## Instalación
-
-**Requisitos del sistema**
-- Sistema operativo: Windows, Linux o macOS
-- Compilador de C++ (GCC, Clang o MSVC)
-- CMake (recomendado)
-- Git
-
-### Pasos básicos
+- **Releases**: cada tag `vX.Y.Z` publica `pulso-vX.Y.Z-linux-x86_64.tar.gz`
+  (con `.sha256`) en la [página de Releases](https://github.com/sis-inf/pulso/releases).
+- **Builds de desarrollo**: cada push a `main`/`dev` sube el binario como
+  artefacto en la pestaña [Actions](https://github.com/sis-inf/pulso/actions/workflows/build.yml)
+  (retención 90 días).
 
 ```bash
-# Clonar el repositorio
-git clone https://github.com/tu-usuario/pulso.git
-
-# Entrar al proyecto
-cd pulso
+tar -xzf pulso-v0.1.0-linux-x86_64.tar.gz
+./pulso-v0.1.0-linux-x86_64/pulso --once
 ```
 
----
+## Uso
 
-> [!NOTE]
-> Estos pasos corresponden a la versión final esperada del proyecto.
+```
+pulso [opciones]
+
+  --config <path>   Archivo de configuración (default: pulso.toml)
+  --interval <ms>   Intervalo de lectura
+  --metrics <list>  Métricas a recolectar: cpu,ram,disk
+  --once            Ejecutar una sola lectura y salir
+  --format <fmt>    Formato de salida con --once: json | csv | prometheus
+  -h, --help        Mostrar ayuda
+  --version         Mostrar versión
+```
+
+Sin `--once`, `pulso` corre como agente: cada `intervalo_segundos` recolecta un
+snapshot, lo empuja al Pushgateway y expone un servidor HTTP local:
+
+| Endpoint | Descripción |
+|---|---|
+| `GET /health` | Estado y uptime del agente (JSON) |
+| `GET /version` | Versión del agente (JSON) |
+| `GET /metrics/prometheus` | Última muestra en RAM, formato Prometheus (pull / depuración) |
+
+Si `pushgateway.url` está vacío, el agente solo expone `/metrics/prometheus`
+(modo pull puro).
+
+## Configuración
+
+`pulso.toml` — todas las claves tienen valor por defecto:
+
+```toml
+[servidor]              # servidor HTTP local del agente
+host = "0.0.0.0"
+puerto = 8080
+
+[sampler]
+intervalo_segundos = 10  # recomendado 10-60
+
+[procesos]
+activo = true            # métricas por programa, agrupadas por nombre
+uid_minimo = 1000        # ignora daemons de sistema / root
+
+[pushgateway]
+url = "http://localhost:9091"  # "" desactiva el push
+job = "pulso"
+instance = ""                  # vacío = hostname de la máquina
+token = ""                     # Bearer opcional (lo valida un reverse proxy)
+tls_skip_verify = false        # aceptar certificados self-signed
+
+nivel_log = "info"             # debug | info | warn | error
+output_format = "json"         # json | csv | prometheus
+```
+
+Variables de entorno equivalentes (tienen prioridad sobre el archivo):
+`PULSO_SERVIDOR_HOST`, `PULSO_SERVIDOR_PUERTO`, `PULSO_SAMPLER_INTERVALO_SEGUNDOS`,
+`PULSO_PUSHGATEWAY_URL`, `PULSO_PUSHGATEWAY_JOB`, `PULSO_PUSHGATEWAY_INSTANCE`,
+`PULSO_PUSHGATEWAY_TOKEN`, `PULSO_NIVEL_LOG`, `PULSO_OUTPUT_FORMAT`.
+
+## Métricas
+
+CPU (total y por núcleo), memoria + swap, disco por punto de montaje + I/O por
+dispositivo, red por interfaz (con errores/descartes), carga, procesos,
+uptime e info del host, temperaturas, batería, y auto-observabilidad del propio
+agente. En Prometheus el nombre lleva prefijo `pulso_` y los `.` pasan a `_`
+(`cpu.usage` → `pulso_cpu_usage`).
+
+Detalle completo: [metricas-disponibles.md](metricas-disponibles.md).
+
+## Stack de observabilidad
+
+`deploy/` trae un `docker-compose.yml` con Pushgateway (`:9091`),
+Prometheus (`:9090`) y Grafana (`:9393`, `admin`/`admin`, dashboard
+*Pulso / Vista general*):
 
 ```bash
-# Crear carpeta de build
-mkdir build && cd build
-
-# Generar archivos de compilación
-cmake ..
-
-# Compilar
-cmake --build .
+cd deploy && docker compose up -d
 ```
 
-Uso rápido:
+Guía: [deploy/README.md](deploy/README.md). Atajo de desarrollo
+(compila + levanta el stack + arranca el agente): `scripts/dev.sh`.
+
+## Compilación
 
 ```bash
-# Ejecutar el programa (puede variar según el sistema)
-./pulso
+cmake -S . -B build [-DCMAKE_BUILD_TYPE=Release]
+cmake --build build -j"$(nproc)"
 ```
 
-En Windows:
+| Opción CMake | Efecto |
+|---|---|
+| `-DBUILD_TESTS=ON` | Compila la suite de tests (GoogleTest vía FetchContent) |
+| `-DBUILD_WITH_ASAN=ON` | AddressSanitizer en los tests (requiere `BUILD_TESTS=ON`) |
+| `-DPULSO_STATIC_LINK=ON` | Enlaza `libgcc`/`libstdc++` estáticos (binario portable) |
+
+También hay un `Makefile` para entornos sin CMake (`make`, `make CXX=clang++`).
+
+## Tests
 
 ```bash
-pulso.exe
-```
-## Compilación rápida
-
-```bash
-cmake -S . -B build
-make -C build
-./build/pulso
+cmake -S . -B build -DBUILD_TESTS=ON && cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
-Para una guía completa de instalación consulte:
-
-[docs/instalacion.md](docs/instalacion.md)
-
----
-
-## Compilación con AddressSanitizer
-
-AddressSanitizer (ASAN) es una herramienta para detectar errores de memoria como accesos inválidos, leaks de memoria, y otros problemas. Es más rápido que Valgrind y ideal para desarrollo.
-
-### Compilar tests con ASAN
-
-```bash
-cmake -S . -B build -DBUILD_TESTS=ON -DBUILD_WITH_ASAN=ON
-cmake --build build
-```
-
-### Ejecutar tests con ASAN
-
-```bash
-cd build
-ctest
-```
-
-O ejecutar un test específico:
-
-```bash
-./build/bin/test_types
-./build/bin/test_config
-./build/bin/test_storage
-```
-
-> [!NOTE]
-> AddressSanitizer solo se aplica a los tests. El build de producción no incluye los flags de ASAN para mantener el rendimiento.
-
----
-
-## Ejemplo de salida
-
-Ejecutar:
-
-```bash
-./build/pulso --once --format json
-```
-
-Salida:
-
-```json
-{
-  "status": "OK",
-  "cpu": {
-    "usage_percent": 23
-  },
-  "memory": {
-    "usage_percent": 40
-  },
-  "disk": {
-    "usage_percent": 47
-  },
-  "network": {
-    "status": "connected"
-  }
-}
-```
-
----
-
----
-## Ejemplo basico de uso esperado
-
-```bash
-# Entrada
-./pulso
-
-# Salida
-¡Bienvenido a Pulso!
-Seleccione una opción:
-1. Ver estado
-2. Actualizar datos
-3. Salir
-
-# Entrada
-> 1
-
-# Salida
-Estado del sistema: OK
-```
-
-**Usando argumentos:**
-
-```bash
-# Entrada
-./pulso --status
-
-# Salida:
-Estado del sistema: OK
-Procesos activos: 5
-Uso de recursos: Normal
-CPU:
-- Uso: 23%
-- Núcleos activos: 4
-
-Memoria (RAM):
-- Uso: 3.2 GB / 8 GB
-- Disponible: 4.8 GB
-
-Disco:
-- Uso: 120 GB / 256 GB
-- Espacio libre: 136 GB
-
-Red:
-- Descarga: 12 Mbps
-- Subida: 3 Mbps
-- Estado: Conectado
-```
-
----
-> [!IMPORTANT]
-> Este proyecto se encuentra en desarrollo activo. Los pasos de instalación y ejecución pueden cambiar en futuras versiones.
----
-## Compilación con Makefile (sin CMake)
- 
-Para entornos ligeros donde CMake no está disponible, el proyecto incluye un
-`Makefile` alternativo listo para usar.
- 
-### Requisitos
- 
-| Herramienta | Versión mínima |
-|-------------|---------------|
-| `g++` / `clang++` | C++17 |
-| GNU Make | 4.x |
- 
-### Uso rápido
- 
-```bash
-# Compilar el proyecto
-make
- 
-# Usar un compilador distinto (ej. clang++)
-make CXX=clang++
- 
-# Ejecutar los tests
-make test
- 
-# Eliminar artefactos de compilación
-make clean
-```
- 
-### Variables configurables
- 
-| Variable | Valor por defecto | Descripción |
-|----------|------------------|-------------|
-| `CXX` | `g++` | Compilador C++ |
-| `CXXFLAGS` | `-std=c++17 -Wall` | Flags de compilación |
- 
-> **Nota:** el operador `?=` en `CXX` permite sobreescribir el compilador
-> desde la línea de comandos o desde la variable de entorno del sistema sin
-> modificar el Makefile.
- 
-### Estructura esperada
- 
-```
-project/
-├── src/          # Fuentes principales (*.cpp)
-├── tests/        # Fuentes de pruebas  (*.cpp)
-├── build/        # Artefactos generados (ignorado por git)
-└── Makefile
-```
- 
----
-
-## ✨ Características
-
-### 📊 Métricas monitoreadas
-- CPU
-- RAM
-- Disco
-- Red
-- Procesos activos
-- Carga del sistema
-- Uptime
-
-### 📤 Formatos de salida
-- JSON
-- Prometheus
-- CSV
-- Texto
-
-### 🌐 Endpoints HTTP
-- Consulta en tiempo real
-- Exportación de datos
-
-### ⚠️ Sistema de alertas
-- Configuración por umbrales
-- Notificación de valores fuera de rango
-
-### ⚙️ Modo de uso
-- Modo `--once`: ejecución única para scripting
-
-### Recompilación incremental
- 
-El Makefile compila únicamente los archivos `.cpp` que hayan cambiado desde
-la última build, gracias al seguimiento de dependencias de Make sobre los
-archivos objeto (`.o`) en `build/`.
----
-
+Un test concreto: `ctest --test-dir build -R Prometheus`, o el binario directo
+en `build/bin/` (`test_types`, `test_config`, `test_ram_usage`,
+`test_disk_usage`, `test_formatter_prometheus`). Ver [tests/README.md](tests/README.md).
 
 ## Documentación
 
-Ver la carpeta [docs/](docs/)
-
-Guía completa de instalación:
-
-## Documentación
-
-[Índice General de la Documentación](docs/indice-general.md)
-
-[docs/instalacion.md](docs/instalacion.md)
-
-## Contribuir
-Ver [CONTRIBUTING.md](CONTRIBUTING.md)
+- [Índice general](docs/indice-general.md)
+- [Guía de instalación](docs/instalacion.md)
+- [Contribuir](CONTRIBUTING.md)
 
 ## Licencia
-MIT — ver [LICENSE](LICENSE)
 
+MIT — ver [LICENSE](LICENSE).

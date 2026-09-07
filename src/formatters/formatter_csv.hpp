@@ -7,48 +7,24 @@
 namespace pulso::formatters {
 
 /**
- * @brief Formateador de métricas en formato CSV.
+ * @brief Formateador CSV en formato largo: una fila por métrica.
  *
- * La primera llamada a formatear() emite la línea de cabecera.
- * Las llamadas siguientes emiten filas de datos separadas por comas.
- * Los valores flotantes se presentan con 2 decimales.
+ * Columnas: timestamp,nombre,etiquetas,valor,unidad
+ * La primera llamada a formatear() emite la cabecera.
  */
 class FormatterCSV : public IFormatter {
 public:
-    /**
-     * @brief Retorna el identificador del formato.
-     * @return "csv"
-     */
     std::string formato() const override;
-
-    /**
-     * @brief Retorna el Content-Type HTTP asociado.
-     * @return "text/csv"
-     */
     std::string contentType() const override;
-
-    /**
-     * @brief Serializa un único snapshot en formato CSV.
-     * La primera llamada incluye la cabecera.
-     * @param snapshot El snapshot a serializar.
-     * @return Cadena CSV con cabecera o fila de datos.
-     */
     std::string formatear(const pulso::core::Snapshot& snapshot) const override;
-
-    /**
-     * @brief Serializa una lista de snapshots en formato CSV.
-     * Incluye cabecera en la primera línea.
-     * @param snapshots Vector de snapshots a serializar.
-     * @return Cadena CSV completa con cabecera y filas de datos.
-     */
     std::string formatearHistorial(
         const std::vector<pulso::core::Snapshot>& snapshots) const override;
 
 private:
-    mutable bool cabecераEmitida_ = false;
+    mutable bool cabeceraEmitida_ = false;
 
     static std::string cabecera();
-    static std::string filaDeSnapshot(const pulso::core::Snapshot& snapshot);
+    static std::string filasDeSnapshot(const pulso::core::Snapshot& snapshot);
 };
 
 } // namespace pulso::formatters

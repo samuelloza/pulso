@@ -1,0 +1,36 @@
+name: Build
+
+# Compila y prueba en cada push a main/dev y en cada PR. El binario queda
+# disponible como artefacto descargable desde la pestaña Actions (90 días).
+# Las releases versionadas las publica release.yml al empujar un tag `v*`.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libssl-dev
+
+      - name: Configurar y compilar (con tests)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DPULSO_STATIC_LINK=ON
+          cmake --build build -j"$(nproc)"
+
+      - name: Ejecutar tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Subir binario como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulso-linux-x86_64
+          path: build/bin/pulso
+          if-no-files-found: error

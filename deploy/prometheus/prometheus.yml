@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Los agentes pulso hacen push al Pushgateway; Prometheus lo scrapea a él.
+  - job_name: pushgateway
+    honor_labels: true          # respeta job/instance que puso cada agente
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["pushgateway:9091"]

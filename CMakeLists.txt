@@ -12,10 +12,7 @@ option(BUILD_WITH_ASAN "Build tests with AddressSanitizer" OFF)
 # Enlace estático: OFF por defecto para no cambiar el comportamiento estándar de build.
 # Activar con -DPULSO_STATIC_LINK=ON para producir un binario standalone sin dependencias dinámicas.
 option(PULSO_STATIC_LINK "Link statically against libgcc, libstdc++ and system libs" OFF)
-
-if(PULSO_STATIC_LINK)
-    target_link_options(pulso PRIVATE -static-libgcc -static-libstdc++)
-endif()
+# El enlace estático se aplica en src/CMakeLists.txt, donde ya existe el target `pulso`.
 
 # Si el usuario activa cualquiera de las dos opciones, sincronizamos el estado
 if(BUILD_TESTS OR PULSO_BUILD_TESTS)
@@ -41,5 +38,6 @@ add_subdirectory(src)
 # add_subdirectory(src/collectors/uptime)        # pendiente: sin archivos fuente aún
 
 if(BUILD_TESTS)
+    enable_testing()
     add_subdirectory(tests)
 endif()

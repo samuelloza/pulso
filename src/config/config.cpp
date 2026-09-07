@@ -65,8 +65,20 @@ void aplicarEnv(Config& cfg)
         cfg.sampler.intervalo_segundos = std::stoll(v);
     }
 
-    if (const char* v = std::getenv("PULSO_STORAGE_RUTA_DB")) {
-        cfg.storage.ruta_db = v;
+    if (const char* v = std::getenv("PULSO_PUSHGATEWAY_URL")) {
+        cfg.pushgateway.url = v;
+    }
+
+    if (const char* v = std::getenv("PULSO_PUSHGATEWAY_JOB")) {
+        cfg.pushgateway.job = v;
+    }
+
+    if (const char* v = std::getenv("PULSO_PUSHGATEWAY_INSTANCE")) {
+        cfg.pushgateway.instance = v;
+    }
+
+    if (const char* v = std::getenv("PULSO_PUSHGATEWAY_TOKEN")) {
+        cfg.pushgateway.token = v;
     }
 
     if (const char* v = std::getenv("PULSO_NIVEL_LOG")) {
@@ -98,10 +110,23 @@ Config mapear(const toml::table& doc)
                       cfg.sampler.intervalo_segundos);
 
 
-    // [storage]
-    cfg.storage.ruta_db =
-        leer<std::string>(doc, "storage", "ruta_db",
-                          cfg.storage.ruta_db);
+    // [procesos]
+    cfg.procesos.activo =
+        leer<bool>(doc, "procesos", "activo", cfg.procesos.activo);
+    cfg.procesos.uid_minimo =
+        leer<int64_t>(doc, "procesos", "uid_minimo", cfg.procesos.uid_minimo);
+
+    // [pushgateway]
+    cfg.pushgateway.url =
+        leer<std::string>(doc, "pushgateway", "url", cfg.pushgateway.url);
+    cfg.pushgateway.job =
+        leer<std::string>(doc, "pushgateway", "job", cfg.pushgateway.job);
+    cfg.pushgateway.instance =
+        leer<std::string>(doc, "pushgateway", "instance", cfg.pushgateway.instance);
+    cfg.pushgateway.token =
+        leer<std::string>(doc, "pushgateway", "token", cfg.pushgateway.token);
+    cfg.pushgateway.tls_skip_verify =
+        leer<bool>(doc, "pushgateway", "tls_skip_verify", cfg.pushgateway.tls_skip_verify);
 
 
     // nivel_log (clave raíz)

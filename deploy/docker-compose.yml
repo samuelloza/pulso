@@ -1,0 +1,62 @@
+# Stack de observabilidad para pulso: Prometheus (scrape + almacenamiento de
+# series temporales) + Grafana (dashboards). El agente `pulso` corre en el host
+# (./build/bin/pulso) exponiendo /metrics/prometheus en el puerto 8080; aqui
+# solo se levanta el "lugar centralizado" que lo consume y grafica.
+#
+#   cd deploy && docker compose up -d
+#   Grafana:    http://localhost:3000   (admin / admin)
+#   Prometheus: http://localhost:9090
+
+services:
+  pushgateway:
+    image: prom/pushgateway:v1.9.0
+    container_name: pulso-pushgateway
+    restart: unless-stopped
+    command:
+      - --persistence.file=/data/pushgateway.store
+      - --persistence.interval=5m
+    volumes:
+      - pushgateway-data:/data
+    ports:
+      - "9091:9091"
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: pulso-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    depends_on:
+      - pushgateway
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: pulso-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # URL pública por la que se accede a Grafana (para links de "Share",
+      # redirects y OAuth). Ajustar al host:puerto reales.
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-http://localhost:9393}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      # host:contenedor — la UI de Grafana queda en el 9393 del host.
+      - "9393:3000"
+
+volumes:
+  pushgateway-data:
+  prometheus-data:
+  grafana-data:

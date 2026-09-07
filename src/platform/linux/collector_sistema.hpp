@@ -9,13 +9,13 @@
 namespace pulso::collectors {
 
 /**
- * @brief Métricas de red por interfaz desde /proc/net/dev (excluye "lo").
+ * @brief Datos del sistema y del propio agente.
  *
- * Contadores acumulados con etiqueta {interface}:
- *  - network.rx_bytes / rx_packets / rx_errors / rx_dropped
- *  - network.tx_bytes / tx_packets / tx_errors / tx_dropped
+ *  - system.uptime_seconds / system.boot_time_seconds
+ *  - system.info{hostname,kernel,os,arch} = 1   (info metric)
+ *  - pulso.build_info{version} = 1
  */
-class CollectorRed : public ICollector {
+class CollectorSistema : public ICollector {
 public:
     std::string nombre() const override;
     std::vector<pulso::core::Metrica> recolectar() override;

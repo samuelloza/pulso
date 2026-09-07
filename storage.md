@@ -1,30 +1,26 @@
-# Sistema de almacenamiento en memoria
+# Almacenamiento: no hay (por diseño)
 
-## Diseño
-El módulo `storage.cpp` gestiona el historial de métricas **exclusivamente en memoria principal**, sin escribir en disco. Esto permite acceso muy rápido a los datos, ideal para consultas recientes y cálculos en tiempo real. No hay archivos intermedios ni base de datos externa; todo se mantiene en estructuras dinámicas mientras el agente está activo.
+El agente `pulso` **no persiste métricas localmente**. En cada muestreo:
 
-## Capacidad y política de retención
-- **Capacidad máxima**: almacena hasta 1 000 registros de métricas.
-- **Política de rotación**: cuando se alcanza el límite, se descartan los registros más antiguos para dar espacio a los nuevos (comportamiento tipo cola).
+1. Ejecuta los colectores y arma un `Snapshot`.
+2. Lo serializa en formato de exposición Prometheus.
+3. Hace `PUT /metrics/job/<job>/instance/<instance>` al **Pushgateway**
+   configurado en `[pushgateway]` de `pulso.toml`.
+4. Guarda ese snapshot como "última muestra" **solo en memoria**
+   (`src/core/muestra_actual.hpp`), para poder servir `/metrics/prometheus`
+   local con fines de depuración / modo pull.
 
-## Métodos disponibles
+El almacenamiento de series temporales vive en el **colector central**
+(Prometheus, que scrapea el Pushgateway). Ver `deploy/`.
 
-| Nombre del método         | Parámetros                                  | Valor de retorno                          | Descripción                                                                 |
-|--------------------------|---------------------------------------------|-------------------------------------------|-----------------------------------------------------------------------------|
-| `agregar_medicion()`     | `tipo, valor, marca_tiempo`                 | `void`                                    | Inserta una nueva medición en el historial.                                |
-| `getHistorial()`         | `tipo, desde, hasta`                        | `vector<Medicion>`                        | Devuelve todas las entradas de un tipo entre dos instantes.                 |
-| `getPromedio()`          | `tipo, ventana_segundos`                    | `double`                                  | Calcula el promedio sobre una ventana de tiempo deslizante.                 |
-| `exportToCSV()`          | `ruta_salida`                               | `bool`                                    | Escribe todo el contenido actual en formato CSV en la ruta indicada.        |
-| `limpiar()`              | —                                           | `void`                                    | Borra todo el historial almacenado.                                         |
+## Consecuencias
 
-## Consultas
-Se soportan consultas por **tipo de métrica** (CPU, RAM, disco, red) y por **intervalo de tiempo**. Las consultas se resuelven en tiempo lineal respecto al tamaño del historial, lo que sigue siendo muy rápido por el límite de capacidad.
+- Si el agente se reinicia, no pierde histórico: el histórico está en Prometheus.
+- Si el Pushgateway está caído, `push()` registra un warning y el agente sigue
+  muestreando; el siguiente ciclo reintenta. No hay buffer local.
+- No hay archivos `.db` ni dependencia de SQLite.
 
-## Exportación
-El método `exportToCSV()` genera un archivo con encabezados claros: `tiempo,tipo,valor`. Es la única forma de conservar los datos fuera del proceso mientras se ejecuta.
+## Modo pull alternativo
 
-## Limitaciones
-- **Volatilidad**: al reiniciar o detener el agente, **todo el historial se pierde**, ya que no persiste en disco.
-- **Tamaño fijo**: no se puede ampliar la capacidad máxima sin modificar el código fuente.
-- **Sin índices complejos**: búsquedas muy grandes podrían ser más lentas.
--
+Si `pushgateway.url` está vacío, el agente no hace push y queda como *exporter*
+clásico: Prometheus (u otro scraper) consulta `http://<agente>:8080/metrics/prometheus`.

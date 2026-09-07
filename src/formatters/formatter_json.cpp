@@ -23,12 +23,15 @@ std::string FormatterJSON::formatear(
     resultado["timestamp"] = snapshot.timestamp;
     resultado["metricas"] = json::array();
 
-    for (const auto& metrica : snapshot.metrics) {
+    for (const auto& metrica : snapshot.metricas) {
+        json etiquetas = json::object();
+        for (const auto& [k, v] : metrica.etiquetas) etiquetas[k] = v;
         resultado["metricas"].push_back({
-            {"nombre", metrica.name},
-            {"valor", metrica.value},
-            {"unidad", metrica.unit},
-            {"timestamp", metrica.timestamp}
+            {"nombre", metrica.nombre},
+            {"valor", metrica.valor},
+            {"unidad", metrica.unidad},
+            {"timestamp", metrica.timestamp},
+            {"etiquetas", etiquetas}
         });
     }
 
@@ -51,12 +54,15 @@ std::string FormatterJSON::formatearHistorial(
         item["timestamp"] = snapshot.timestamp;
         item["metricas"] = json::array();
 
-        for (const auto& metrica : snapshot.metrics) {
+        for (const auto& metrica : snapshot.metricas) {
+            json etiquetas = json::object();
+            for (const auto& [k, v] : metrica.etiquetas) etiquetas[k] = v;
             item["metricas"].push_back({
-                {"nombre", metrica.name},
-                {"valor", metrica.value},
-                {"unidad", metrica.unit},
-                {"timestamp", metrica.timestamp}
+                {"nombre", metrica.nombre},
+                {"valor", metrica.valor},
+                {"unidad", metrica.unidad},
+                {"timestamp", metrica.timestamp},
+                {"etiquetas", etiquetas}
             });
         }
 

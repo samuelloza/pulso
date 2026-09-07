@@ -1,6 +1,11 @@
 enable_testing()
 message(STATUS "Tests are enabled (PULSO_BUILD_TESTS=ON)")
-find_package(GTest REQUIRED)
+# googletest lo provee cmake/Dependencies.cmake vía FetchContent cuando
+# PULSO_BUILD_TESTS=ON. Solo buscamos el paquete del sistema si esos targets
+# no existen (build de tests aislado).
+if(NOT TARGET GTest::gtest)
+    find_package(GTest REQUIRED)
+endif()
 include(GoogleTest)
 
 # Apply AddressSanitizer flags if BUILD_WITH_ASAN is enabled
@@ -35,21 +40,6 @@ target_link_libraries(test_config PRIVATE
 )
 gtest_discover_tests(test_config)
 
-add_executable(test_storage
-    storage/test_storage.cpp
-)
-target_include_directories(test_storage PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
-)
-target_link_libraries(test_storage PRIVATE
-    GTest::gtest
-    GTest::gtest_main
-    SQLiteCpp
-    sqlite3
-    pthread
-    dl
-)
-gtest_discover_tests(test_storage)
 add_executable(test_disk_usage
     automatizados/test_disk_usage.cpp
 )

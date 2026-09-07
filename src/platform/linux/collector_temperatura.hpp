@@ -9,13 +9,13 @@
 namespace pulso::collectors {
 
 /**
- * @brief Métricas de red por interfaz desde /proc/net/dev (excluye "lo").
+ * @brief Temperaturas de /sys/class/hwmon (fallback: /sys/class/thermal).
  *
- * Contadores acumulados con etiqueta {interface}:
- *  - network.rx_bytes / rx_packets / rx_errors / rx_dropped
- *  - network.tx_bytes / tx_packets / tx_errors / tx_dropped
+ *  - temperature.celsius{chip,sensor}
+ *
+ * Sin sensores accesibles devuelve vector vacío (no lanza).
  */
-class CollectorRed : public ICollector {
+class CollectorTemperatura : public ICollector {
 public:
     std::string nombre() const override;
     std::vector<pulso::core::Metrica> recolectar() override;

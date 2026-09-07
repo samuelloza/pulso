@@ -1,48 +1,37 @@
 add_executable(pulso main.cpp)
 
+# El agente no persiste nada: muestrea y hace push al Pushgateway. Sin SQLite.
 target_sources(pulso PRIVATE
     cli/arg_parser.cpp
-    collectors/bateria/bateria_collector.cpp
-    collectors/cpu/cpu_usage.cpp
-    collectors/disk/disk_usage.cpp
-    collectors/memory/ram_usage.cpp
-    collectors/network/network_io.cpp
-    collectors/network/net_usage.cpp
-    collectors/loadavg/loadavg_collector.cpp
-    collectors/procesos/proc_collector.cpp
-    collectors/procesos/top_procesos.cpp
-    collectors/temperatura/temp_collector.cpp
     config/config.cpp
-    core/SystemMonitor.cpp
-    formatters/formatter_json.cpp
-    formatters/formatter_csv.cpp
-    formatters/formatter_text.cpp
-    formatters/formatter_prometheus.cpp
-    formatters/formatter_text.cpp
-    http/handler_health.cpp
-    http/handler_history.cpp
-    http/handler_metrics.cpp
-    platform/linux/collector_cpu.cpp
-    storage/schema.cpp
-    storage/storage.cpp
-    utils/console_formatter.cpp
-    utils/formato_bytes.cpp
+    exporter/pushgateway.cpp
+    sampler/sampler.cpp
     utils/logging/logger.cpp
     utils/signal_handler.cpp
-    src/core/version.hpp
-    src/http/handler_version.hpp
-    src/http/handler_version.cpp
+
+    formatters/formatter_json.cpp
+    formatters/formatter_csv.cpp
+    formatters/formatter_prometheus.cpp
+
+    http/handler_health.cpp
+    http/handler_version.cpp
+
+    collectors/bateria/bateria_collector.cpp
+    collectors/memory/ram_usage.cpp
+    platform/linux/collector_cpu.cpp
+    platform/linux/collector_disk.cpp
+    platform/linux/collector_network.cpp
+    platform/linux/collector_procesos.cpp
+    platform/linux/collector_carga.cpp
+    platform/linux/collector_sistema.cpp
+    platform/linux/collector_temperatura.cpp
 )
 
-# Collector de CPU para Windows: solo se compila en plataforma WIN32.
-# En Linux/macOS este archivo queda completamente excluido del build.
-if(WIN32)
-    target_sources(pulso PRIVATE
-        platform/windows/collector_cpu.cpp
-    )
-endif()
-
 target_compile_features(pulso PRIVATE cxx_std_17)
+
+if(PULSO_STATIC_LINK)
+    target_link_options(pulso PRIVATE -static-libgcc -static-libstdc++)
+endif()
 
 target_include_directories(pulso PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -51,9 +40,21 @@ target_include_directories(pulso PRIVATE
 target_link_libraries(pulso PRIVATE
     httplib
     nlohmann_json
-    tomlplusplus
-    SQLiteCpp
-    sqlite3
+    tomlplusplus::tomlplusplus
 )
 
-target_compile_options(pulso PRIVATE -Wall -Wextra -Wpedantic -O2)
+# OpenSSL opcional: habilita `https://` en el cliente de Pushgateway.
+# Sin OpenSSL el agente compila igual pero solo acepta `http://`.
+find_package(OpenSSL)
+if(OpenSSL_FOUND)
+    target_compile_definitions(pulso PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
+    target_link_libraries(pulso PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    message(STATUS "pulso: soporte HTTPS habilitado (OpenSSL ${OPENSSL_VERSION})")
+else()
+    message(STATUS "pulso: sin OpenSSL, el push solo funcionará por http://")
+endif()
+
+# -Wno-missing-field-initializers: Metrica se inicializa con {nombre,valor,unidad,ts}
+# y `etiquetas` queda por defecto a propósito (patrón usado en todos los colectores).
+target_compile_options(pulso PRIVATE
+    -Wall -Wextra -Wpedantic -Wno-missing-field-initializers -O2)

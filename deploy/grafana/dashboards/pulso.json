@@ -1,0 +1,186 @@
+{
+  "uid": "pulso-overview",
+  "title": "Pulso - Vista general",
+  "tags": ["pulso"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "label": "Instancia",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(pulso_up, instance)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat", "title": "Agentes reportando", "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "count(pulso_up{instance=~\"$instance\"} == 1) or vector(0)" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } } }
+    },
+    {
+      "type": "stat", "title": "Errores de colector (total)", "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(pulso_collector_errors{instance=~\"$instance\"})" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } }
+    },
+    {
+      "type": "timeseries", "title": "Duración del muestreo", "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "pulso_sample_duration_seconds{instance=~\"$instance\"}", "legendFormat": "{{instance}}" }],
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 } }
+    },
+    {
+      "type": "table", "title": "Sistema", "gridPos": { "h": 4, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "pulso_system_info{instance=~\"$instance\"}", "format": "table", "instant": true },
+        { "expr": "pulso_build_info{instance=~\"$instance\"}", "format": "table", "instant": true }
+      ],
+      "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true, "Value #A": true, "Value #B": true, "__name__": true, "job": true } } }]
+    },
+    {
+      "type": "gauge", "title": "Uso de CPU (%)", "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "pulso_cpu_usage{instance=~\"$instance\", core=\"\"}", "legendFormat": "{{instance}}" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 } ] } } }
+    },
+    {
+      "type": "timeseries", "title": "CPU total y por núcleo (%)", "gridPos": { "h": 6, "w": 18, "x": 6, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "pulso_cpu_usage{instance=~\"$instance\", core=\"\"}", "legendFormat": "{{instance}} total" },
+        { "expr": "pulso_cpu_usage{instance=~\"$instance\", core!=\"\"}", "legendFormat": "{{instance}} core {{core}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }
+    },
+    {
+      "type": "timeseries", "title": "Memoria", "gridPos": { "h": 7, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "pulso_memory_used_bytes{instance=~\"$instance\"}", "legendFormat": "{{instance}} usada" },
+        { "expr": "pulso_memory_available_bytes{instance=~\"$instance\"}", "legendFormat": "{{instance}} disponible" },
+        { "expr": "pulso_memory_total_bytes{instance=~\"$instance\"}", "legendFormat": "{{instance}} total" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "min": 0 } }
+    },
+    {
+      "type": "timeseries", "title": "Swap", "gridPos": { "h": 7, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "pulso_swap_used_bytes{instance=~\"$instance\"}", "legendFormat": "{{instance}} usada" },
+        { "expr": "pulso_swap_total_bytes{instance=~\"$instance\"}", "legendFormat": "{{instance}} total" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "min": 0 } }
+    },
+    {
+      "type": "timeseries", "title": "Carga del sistema", "gridPos": { "h": 7, "w": 12, "x": 0, "y": 21 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "pulso_load_avg1{instance=~\"$instance\"}", "legendFormat": "{{instance}} 1m" },
+        { "expr": "pulso_load_avg5{instance=~\"$instance\"}", "legendFormat": "{{instance}} 5m" },
+        { "expr": "pulso_load_avg15{instance=~\"$instance\"}", "legendFormat": "{{instance}} 15m" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0 } }
+    },
+    {
+      "type": "timeseries", "title": "Procesos", "gridPos": { "h": 7, "w": 12, "x": 12, "y": 21 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "pulso_procesos_running{instance=~\"$instance\"}", "legendFormat": "{{instance}} ejecutando" },
+        { "expr": "pulso_procesos_blocked{instance=~\"$instance\"}", "legendFormat": "{{instance}} bloqueados" },
+        { "expr": "pulso_procesos_zombie{instance=~\"$instance\"}", "legendFormat": "{{instance}} zombie" },
+        { "expr": "pulso_procesos_total{instance=~\"$instance\"}", "legendFormat": "{{instance}} total" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0 } }
+    },
+    {
+      "type": "timeseries", "title": "Disco - uso por montaje (%)", "gridPos": { "h": 7, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "pulso_disk_used_ratio{instance=~\"$instance\"} * 100", "legendFormat": "{{instance}} {{mount}}" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }
+    },
+    {
+      "type": "timeseries", "title": "Disco - I/O por dispositivo", "gridPos": { "h": 7, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "rate(pulso_disk_read_bytes{instance=~\"$instance\"}[5m])", "legendFormat": "{{instance}} {{device}} lectura" },
+        { "expr": "rate(pulso_disk_written_bytes{instance=~\"$instance\"}[5m])", "legendFormat": "{{instance}} {{device}} escritura" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "min": 0 } }
+    },
+    {
+      "type": "timeseries", "title": "Red - throughput por interfaz", "gridPos": { "h": 7, "w": 12, "x": 0, "y": 35 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "rate(pulso_network_rx_bytes{instance=~\"$instance\"}[5m])", "legendFormat": "{{instance}} {{interface}} rx" },
+        { "expr": "rate(pulso_network_tx_bytes{instance=~\"$instance\"}[5m])", "legendFormat": "{{instance}} {{interface}} tx" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "min": 0 } }
+    },
+    {
+      "type": "timeseries", "title": "Red - errores y descartes", "gridPos": { "h": 7, "w": 12, "x": 12, "y": 35 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "rate(pulso_network_rx_errors{instance=~\"$instance\"}[5m])", "legendFormat": "{{instance}} {{interface}} rx err" },
+        { "expr": "rate(pulso_network_tx_errors{instance=~\"$instance\"}[5m])", "legendFormat": "{{instance}} {{interface}} tx err" },
+        { "expr": "rate(pulso_network_rx_dropped{instance=~\"$instance\"}[5m])", "legendFormat": "{{instance}} {{interface}} rx drop" },
+        { "expr": "rate(pulso_network_tx_dropped{instance=~\"$instance\"}[5m])", "legendFormat": "{{instance}} {{interface}} tx drop" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0 } }
+    },
+    {
+      "type": "timeseries", "title": "Temperatura", "gridPos": { "h": 7, "w": 24, "x": 0, "y": 42 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "pulso_temperature_celsius{instance=~\"$instance\"}", "legendFormat": "{{instance}} {{chip}}/{{sensor}}" }],
+      "fieldConfig": { "defaults": { "unit": "celsius", "min": 0 } }
+    },
+    {
+      "type": "table",
+      "title": "Programas usados (tiempo abierto por máquina)",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 49 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "time() - pulso_proceso_start_time_seconds{instance=~\"$instance\"}", "format": "table", "instant": true },
+        { "refId": "B", "expr": "pulso_proceso_instancias{instance=~\"$instance\"} + 0", "format": "table", "instant": true },
+        { "refId": "C", "expr": "pulso_proceso_rss_bytes{instance=~\"$instance\"} + 0", "format": "table", "instant": true },
+        { "refId": "D", "expr": "pulso_proceso_cpu_seconds{instance=~\"$instance\"} + 0", "format": "table", "instant": true }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        { "id": "organize", "options": {
+          "excludeByName": { "Time": true, "job": true },
+          "renameByName": {
+            "instance": "Máquina", "comm": "Programa",
+            "Value #A": "Tiempo abierto", "Value #B": "Instancias",
+            "Value #C": "RAM", "Value #D": "CPU total"
+          },
+          "indexByName": {
+            "instance": 0, "comm": 1, "Value #A": 2,
+            "Value #B": 3, "Value #C": 4, "Value #D": 5
+          }
+        } }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Tiempo abierto" }, "properties": [ { "id": "unit", "value": "s" } ] },
+          { "matcher": { "id": "byName", "options": "RAM" }, "properties": [ { "id": "unit", "value": "bytes" } ] },
+          { "matcher": { "id": "byName", "options": "CPU total" }, "properties": [ { "id": "unit", "value": "s" } ] }
+        ]
+      },
+      "options": { "sortBy": [ { "displayName": "Tiempo abierto", "desc": true } ] }
+    }
+  ]
+}
